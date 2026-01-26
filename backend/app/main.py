@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +14,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ 
 # 2. Define Paths
 # Points to the root folder 'devscribe-backend'
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -54,7 +54,22 @@ async def catch_all(full_path: str):
         
     return {"error": "File not found"}
 
-
+@app.post("/create-file-structure")
+async def create_file_structure(message: str = Form(...), timestamp: str = Form(...)):
+    print("=" * 50)
+    print("POST Variables Received:")
+    print("=" * 50)
+    print(f"message: {message}")
+    print(f"timestamp: {timestamp}")
+    print("=" * 50)
+    
+    return {
+        "status": "success",
+        "received_data": {
+            "message": message,
+            "timestamp": timestamp
+        }
+    }  
 
 if __name__ == "__main__":
     import uvicorn
