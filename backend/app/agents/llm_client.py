@@ -5,7 +5,7 @@ OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL = "qwen2.5-coder:7b"
 
 
-def api1(system_prompt, user_prompt):
+def get_llm_response(system_prompt, user_prompt):
    
 
     payload = {
