@@ -149,4 +149,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   micBtn.addEventListener("click", toggleMic);
+
+  setTimeout(toggleMic, 3000); // Auto-start recording after 2 seconds
 });
