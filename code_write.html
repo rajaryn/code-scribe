@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Writer</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --color-background: #09090b;
+            --color-surface: #18181b;
+            --color-border: rgba(255, 255, 255, 0.08);
+            --color-accent: #ff3333;
+            --color-white: #ffffff;
+            --color-white-10: rgba(255, 255, 255, 0.1);
+            --color-white-20: rgba(255, 255, 255, 0.2);
+            --color-white-30: rgba(255, 255, 255, 0.3);
+            --color-white-60: rgba(255, 255, 255, 0.6);
+            --font-sans: 'Manrope', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--color-background);
+            color: var(--color-white);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            gap: 1px;
+            background-color: var(--color-border);
+        }
+
+        /* LEFT SIDEBAR - 20% */
+        .sidebar-left {
+            width: 20%;
+            background-color: var(--color-surface);
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-right: 1px solid var(--color-border);
+        }
+
+        .sidebar-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--color-white-60);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tree-container {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        .tree-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--color-white-60);
+        }
+
+        .tree-item:hover {
+            background-color: var(--color-white-10);
+            color: var(--color-white);
+        }
+
+        .tree-item.active {
+            background-color: var(--color-accent);
+            color: var(--color-white);
+        }
+
+        .tree-item.folder {
+            font-weight: 600;
+        }
+
+        .tree-children {
+            margin-left: 1.5rem;
+            border-left: 1px solid var(--color-border);
+            padding-left: 0.5rem;
+        }
+
+        .tree-icon {
+            width:            width: 16px;
+                        height: 16px;
+                    }
+            
+                    /* MIDDLE SECTION - 60% */
+                    .editor-section {
+                        width: 60%;
+                        background-color: var(--color-surface);
+                        display: flex;
+                        flex-direction: column;
+                    }
+            
+                    .editor-header {
+                        padding: 1rem 1.5rem;
+                        border-bottom: 1px solid var(--color-border);
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+            
+                    .file-name {
+                        font-family: var(--font-mono);
+                        font-size: 0.875rem;
+                        color: var(--color-white-60);
+                    }
+            
+                    .editor-container {
+                        flex: 1;
+                        padding: 1.5rem;
+                        overflow-y: auto;
+                    }
+            
+                    .code-editor {
+                        width: 100%;
+                        height: 100%;
+                        background-color: transparent;
+                        border: 1px solid var(--color-border);
+                        border-radius: 0.5rem;
+                        padding: 1.5rem;
+                        font-family: var(--font-mono);
+                        font-size: 0.875rem;
+                        color: var(--color-white);
+                        resize: none;
+                        outline: none;
+                        line-height: 1.6;
+                    }
+            
+                    .code-editor:focus {
+                        border-color: var(--color-accent);
+                        box-shadow: 0 0 0 3px rgba(255, 51, 51, 0.1);
+                    }
+            
+                    /* RIGHT SIDEBAR - 20% */
+                    .sidebar-right {
+                        width: 20%;
+                        background-color: var(--color-surface);
+                        padding: 1.5rem;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1rem;
+                        border-left: 1px solid var(--color-border);
+                    }
+            
+                    .input-section {
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1rem;
+                    }
+            
+                    .voice-input-container {
+                        position: relative;
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                    }
+            
+                    .voice-textarea {
+                        flex: 1;
+                        background-color: var(--color-background);
+                        border: 1px solid var(--color-border);
+                        border-radius: 0.5rem;
+                        padding: 1rem;
+                        font-family: var(--font-sans);
+                        font-size: 0.875rem;
+                        color: var(--color-white);
+                        resize: none;
+                        outline: none;
+                    }
+            
+                    .voice-textarea:focus {
+                        border-color: var(--color-accent);
+                    }
+            
+                    .voice-textarea::placeholder {
+                        color: var(--color-white-30);
+                    }
+            
+                    .controls-container {
+                        display: flex;
+                        gap: 0.75rem;
+                        align-items: center;
+                        justify-content: flex-end;
+                        margin-top: 1rem;
+                    }
+            
+                    .btn-voice {
+                        width: 2.5rem;
+                        height: 2.5rem;
+                        border-radius: 50%;
+                        background-color: var(--color-white-10);
+                        border: 1px solid var(--color-border);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.3s;
+                        color: var(--color-white);
+                    }
+            
+                    .btn-voice:hover {
+                        background-color: var(--color-white-20);
+                        border-color: var(--color-accent);
+                    }
+            
+                    .btn-voice.recording {
+                        background-color: var(--color-accent);
+                        border-color: var(--color-accent);
+                        animation: pulse 2s infinite;
+                    }
+            
+                    .btn-send {
+                        width: 2.5rem;
+                        height: 2.5rem;
+                        border-radius: 50%;
+                        background-color: var(--color-accent);
+                        border: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.3s;
+                        color: var(--color-white);
+                    }
+            
+                    .btn-send:hover {
+                        transform: scale(1.1);
+                        box-shadow: 0 0 20px rgba(255, 51, 51, 0.5);
+                    }
+            
+                    .btn-send:disabled {
+                        opacity: 0.3;
+                        cursor: not-allowed;
+                        transform: scale(1);
+                    }
+            
+                    .loading-spinner {
+                        display: none;
+                        text-align: center;
+                        padding: 2rem;
+                        color: var(--color-white-60);
+                    }
+            
+                    @keyframes pulse {
+                        0%, 100% {
+                            box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.7);
+                        }
+                        50% {
+                            box-shadow: 0 0 0 10px rgba(255, 51, 51, 0);
+                        }
+                    }
+            
+                    /* Scrollbar Styling */
+                    ::-webkit-scrollbar {
+                        width: 8px;
+                        height: 8px;
+                    }
+            
+                    ::-webkit-scrollbar-track {
+                        background: var(--color-background);
+                    }
+            
+                    ::-webkit-scrollbar-thumb {
+                        background: var(--color-white-20);
+                        border-radius: 4px;
+                    }
+            
+                    ::-webkit-scrollbar-thumb:hover {
+                        background: var(--color-white-30);
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="main-container">
+                    <!-- LEFT SIDEBAR - Folder Structure -->
+                    <div class="sidebar-left">
+                        <div class="sidebar-title" id="project-title">Project Structure</div>
+                        <div class="loading-spinner" id="loading-spinner">
+                            <i data-lucide="loader-2" style="width: 24px; height: 24px; animation: spin 1s linear infinite;"></i>
+                            <p style="margin-top: 0.5rem;">Loading project...</p>
+                        </div>
+                        <div class="tree-container" id="folder-tree">
+                            <!-- Tree will be dynamically generated -->
+                        </div>
+                    </div>
+            
+                    <!-- MIDDLE SECTION - Code Editor -->
+                    <div class="editor-section">
+                        <div class="editor-header">
+                            <div class="file-name" id="current-file-name">Select a file</div>
+                            <button class="btn-voice" style="width: auto; padding: 0.5rem 1rem; border-radius: 0.375rem;" id="save-btn">
+                                <i data-lucide="save" style="width: 16px; height: 16px; margin-right: 0.5rem;"></i>
+                                Save
+                            </button>
+                        </div>
+                        <div class="editor-container">
+                            <textarea class="code-editor" id="code-editor" placeholder="Select a file to start editing..." spellcheck="false"></textarea>
+                        </div>
+                    </div>
+            
+                    <!-- RIGHT SIDEBAR - Voice Input -->
+                    <div class="sidebar-right">
+                        <div class="sidebar-title">AI Assistant</div>
+                        <div class="input-section">
+                            <div class="voice-input-container">
+                                <textarea 
+                                    class="voice-textarea" 
+                                    id="voice-input" 
+                                    placeholder="Describe what you want to code..."
+                                ></textarea>
+                            </div>
+                            <div class="controls-container">
+                                <button class="btn-voice" id="mic-btn">
+                                    <i data-lucide="mic" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <button class="btn-send" id="send-btn" disabled>
+                                    <i data-lucide="send" style="width: 20px; height: 20px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- Bootstrap JS -->
+                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                
+                <script>
+                    // Initialize Lucide icons
+                    lucide.createIcons();
+            
+                    // Get elements
+                    const voiceInput = document.getElementById('voice-input');
+                    const micBtn = document.getElementById('mic-btn');
+                    const sendBtn = document.getElementById('send-btn');
+                    const codeEditor = document.getElementById('code-editor');
+                    const fileName = document.getElementById('current-file-name');
+                    const folderTree = document.getElementById('folder-tree');
+                    const loadingSpinner = document.getElementById('loading-spinner');
+                    const projectTitle = document.getElementById('project-title');
+            
+                    let recognition;
+                    let isRecording = false;
+                    let currentProjectName = '';
+                    let currentFilePath = '';
+            
+                    // Get project name from URL
+                    function getProjectNameFromURL() {
+                        const path = window.location.pathname;
+                        const segments = path.split('/').filter(s => s);
+                        return segments[0] || '';
+                    }
+            
+                    // Build tree HTML from structure data
+                    function buildTreeHTML(items, parentPath = '') {
+                        let html = '';
+                        
+                        items.forEach(item => {
+                            if (item.type === 'folder') {
+                                html += `
+                                    <div class="tree-item folder" data-path="${item.path}">
+                                        <i data-lucide="folder" class="tree-icon"></i>
+                                        <span>${item.name}</span>
+                                    </div>
+                                `;
+                                
+                                if (item.children && item.children.length > 0) {
+                                    html += `<div class="tree-children">`;
+                                    html += buildTreeHTML(item.children, item.path);
+                                    html += `</div>`;
+                                }
+                            } else {
+                                html += `
+                                    <div class="tree-item file" data-path="${item.path}">
+                                        <i data-lucide="file-code" class="tree-icon"></i>
+                                        <span>${item.name}</span>
+                                    </div>
+                                `;
+                            }
+                        });
+                        
+                        return html;
+                    }
+            
+                    // Load folder structure from API
+                    async function loadFolderStructure() {
+                        currentProjectName = getProjectNameFromURL();
+                        
+                        if (!currentProjectName) {
+                            folderTree.innerHTML = '<p style="color: var(--color-white-30); padding: 1rem;">No project selected</p>';
+                            return;
+                        }
+            
+                        // Show loading spinner
+                        loadingSpinner.style.display = 'block';
+                        folderTree.style.display = 'none';
+            
+                        try {
+                            const response = await fetch(`/api/folder-structure/${currentProjectName}`);
+                            const data = await response.json();
+            
+                            if (response.ok) {
+                                // Update project title
+                                projectTitle.textContent = data.project_name;
+                                
+                                // Build and insert tree HTML
+                                folderTree.innerHTML = buildTreeHTML(data.structure);
+                                
+                                // Re-initialize Lucide icons
+                                lucide.createIcons();
+                                
+                                // Attach event listeners
+                                attachTreeEventListeners();
+                                
+                                // Hide loading, show tree
+                                loadingSpinner.style.display = 'none';
+                                folderTree.style.display = 'block';
+                            } else {
+                                folderTree.innerHTML = `<p style="color: var(--color-accent); padding: 1rem;">${data.error}</p>`;
+                                loadingSpinner.style.display = 'none';
+                            }
+                        } catch (error) {
+                            console.error('Error loading folder structure:', error);
+                                                 folderTree.innerHTML = '<p style="color: var(--color-accent); padding: 1rem;">Failed to load project structure</p>';
+                                                        loadingSpinner.style.display = 'none';
+                                                    }
+                                                }
+                            
+                                                // Load file content from API
+                                                async function loadFileContent(filePath) {
+                                                    if (!currentProjectName || !filePath) return;
+                            
+                                                    try {
+                                                        const response = await fetch(`/api/file-content/${currentProjectName}/${filePath}`);
+                                                        const data = await response.json();
+                            
+                                                        if (response.ok) {
+                                                            codeEditor.value = data.content;
+                                                            fileName.textContent = filePath;
+                                                            currentFilePath = filePath;
+                                                        } else {
+                                                            console.error('Error loading file:', data.error);
+                                                            codeEditor.value = `// Error: ${data.error}`;
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Error loading file content:', error);
+                                                        codeEditor.value = '// Failed to load file content';
+                                                    }
+                                                }
+                            
+                                                // Attach event listeners to tree items
+                                                function attachTreeEventListeners() {
+                                                    // File click handlers
+                                                    document.querySelectorAll('.tree-item.file').forEach(item => {
+                                                        item.addEventListener('click', function() {
+                                                            // Remove active class from all items
+                                                            document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
+                                                            
+                                                            // Add active class to clicked item
+                                                            this.classList.add('active');
+                                                            
+                                                            // Load file content
+                                                            const filePath = this.getAttribute('data-path');
+                                                            loadFileContent(filePath);
+                                                        });
+                                                    });
+                            
+                                                    // Folder toggle functionality
+                                                    document.querySelectorAll('.tree-item.folder').forEach(folder => {
+                                                        folder.addEventListener('click', function(e) {
+                                                            e.stopPropagation();
+                                                            const children = this.nextElementSibling;
+                                                            if (children && children.classList.contains('tree-children')) {
+                                                                const isHidden = children.style.display === 'none';
+                                                                children.style.display = isHidden ? 'block' : 'none';
+                                                                
+                                                                // Change folder icon
+                                                                const icon = this.querySelector('i');
+                                                                if (icon) {
+                                                                    icon.setAttribute('data-lucide', isHidden ? 'folder-open' : 'folder');
+                                                                    lucide.createIcons();
+                                                                }
+                                                            }
+                                                        });
+                                                    });
+                                                }
+                            
+                                                // Save file content
+                                                async function saveFileContent() {
+                                                    if (!currentProjectName || !currentFilePath) {
+                                                        alert('No file selected');
+                                                        return;
+                                                    }
+                            
+                                                    const content = codeEditor.value;
+                            
+                                                    try {
+                                                        const response = await fetch(`/api/save-file/${currentProjectName}/${currentFilePath}`, {
+                                                            method: 'POST',
+                                                            headers: {
+                                                                'Content-Type': 'application/json',
+                                                            },
+                                                            body: JSON.stringify({ content })
+                                                        });
+                            
+                                                        const data = await response.json();
+                            
+                                                        if (response.ok) {
+                                                            console.log('File saved successfully');
+                                                            // Optional: Show success message
+                                                        } else {
+                                                            console.error('Error saving file:', data.error);
+                                                            alert(`Failed to save file: ${data.error}`);
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Error saving file:', error);
+                                                        alert('Failed to save file');
+                                                    }
+                                                }
+                            
+                                                // Initialize Speech Recognition
+                                                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                                                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                                    recognition = new SpeechRecognition();
+                                                    recognition.continuous = true;
+                                                    recognition.interimResults = true;
+                            
+                                                    recognition.onresult = (event) => {
+                                                        let interimTranscript = '';
+                                                        let finalTranscript = '';
+                            
+                                                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                                                            const transcript = event.results[i][0].transcript;
+                                                            if (event.results[i].isFinal) {
+                                                                finalTranscript += transcript + ' ';
+                                                            } else {
+                                                                interimTranscript += transcript;
+                                                            }
+                                                        }
+                            
+                                                        voiceInput.value = finalTranscript || interimTranscript;
+                                                        
+                                                        // Enable send button if there's text
+                                                        sendBtn.disabled = voiceInput.value.trim().length === 0;
+                                                    };
+                            
+                                                    recognition.onerror = (event) => {
+                                                        console.error('Speech recognition error:', event.error);
+                                                        isRecording = false;
+                                                        micBtn.classList.remove('recording');
+                                                    };
+                            
+                                                    recognition.onend = () => {
+                                                        isRecording = false;
+                                                        micBtn.classList.remove('recording');
+                                                    };
+                                                }
+                            
+                                                // Mic button click
+                                                micBtn.addEventListener('click', () => {
+                                                    if (!recognition) {
+                                                        alert('Speech recognition is not supported in your browser');
+                                                        return;
+                                                    }
+                            
+                                                    if (isRecording) {
+                                                        recognition.stop();
+                                                        isRecording = false;
+                                                        micBtn.classList.remove('recording');
+                                                    } else {
+                                                        recognition.start();
+                                                        isRecording = true;
+                                                        micBtn.classList.add('recording');
+                                                    }
+                                                });
+                            
+                                                // Enable/disable send button based on input
+                                                voiceInput.addEventListener('input', () => {
+                                                    sendBtn.disabled = voiceInput.value.trim().length === 0;
+                                                });
+                            
+                                                // Send button click
+                                                sendBtn.addEventListener('click', () => {
+                                                    const message = voiceInput.value.trim();
+                                                    if (!message) return;
+                            
+                                                    console.log('Sending message:', message);
+                                                    
+                                                    // TODO: Send to AI backend API
+                                                    // For now, just clear the input
+                                                    voiceInput.value = '';
+                                                    sendBtn.disabled = true;
+                                                });
+                            
+                                                // Allow Enter to send (Shift+Enter for new line)
+                                                voiceInput.addEventListener('keydown', (e) => {
+                                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        if (voiceInput.value.trim().length > 0) {
+                                                            sendBtn.click();
+                                                        }
+                                                    }
+                                                });
+                            
+                                                // Save button click
+                                                document.getElementById('save-btn').addEventListener('click', saveFileContent);
+                            
+                                                // Keyboard shortcut for save (Ctrl+S or Cmd+S)
+                                                codeEditor.addEventListener('keydown', (e) => {
+                                                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                                                        e.preventDefault();
+                                                        saveFileContent();
+                                                    }
+                                                });
+                            
+                                                // Load folder structure on page load
+                                                window.addEventListener('DOMContentLoaded', () => {
+                                                    loadFolderStructure();
+                                                });
+                                            </script>
+                                        </body>
+                                        </html>
