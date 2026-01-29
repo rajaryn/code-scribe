@@ -1,5 +1,3 @@
-lucide.createIcons();
-
 document.addEventListener("DOMContentLoaded", () => {
   const textarea = document.getElementById("chat-textarea");
   const micBtn = document.getElementById("mic-btn");
@@ -15,17 +13,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let seconds = 0;
 
   // --- 1. SETUP VISUALIZER ---
-  // Generate bars dynamically (similar to React's .map)
   const BAR_COUNT = 20;
   for (let i = 0; i < BAR_COUNT; i++) {
     const bar = document.createElement("div");
     bar.className = "visualizer-bar";
-    // Randomize animation duration/delay for organic feel
-    const duration = 0.4 + Math.random() * 0.4; // Between 0.4s and 0.8s
+    const duration = 0.4 + Math.random() * 0.4;
     const delay = Math.random() * 0.5;
     bar.style.animationDuration = `${duration}s`;
-    bar.style.animationDelay = `-${delay}s`; // Negative delay starts animation immediately
-    bar.style.height = "10%"; // Default low state
+    bar.style.animationDelay = `-${delay}s`;
+    bar.style.height = "10%";
     visualizerContainer.appendChild(bar);
   }
 
@@ -61,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sendBtn.removeAttribute("disabled");
       sendBtn.classList.remove("opacity-0", "scale-75");
     } else {
-      sendBtn.setAttribute("disabled", "true");
+      // sendBtn.setAttribute("disabled", "true");
       sendBtn.classList.add("opacity-0", "scale-75");
     }
   };
@@ -79,7 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
       isRecording = true;
       micBtn.classList.add("recording");
 
-      // UI Transition
       voiceInterface.classList.remove("hidden");
       voiceInterface.classList.add("flex");
       statusMsg.style.opacity = "1";
@@ -140,7 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
     isRecording = false;
     micBtn.classList.remove("recording");
 
-    // Hide Interface
     voiceInterface.classList.add("hidden");
     voiceInterface.classList.remove("flex");
     statusMsg.style.opacity = "0";
@@ -148,7 +142,97 @@ document.addEventListener("DOMContentLoaded", () => {
     stopTimer();
   };
 
-  micBtn.addEventListener("click", toggleMic);
+  // --- 6. SEND MESSAGE FUNCTION ---
+  const sendMessage = () => {
+    const message = textarea.value.trim();
+    
+    if (!message) return;
 
-  setTimeout(toggleMic, 3000); // Auto-start recording after 2 seconds
+    // Stop recording if active
+    if (isRecording && recognition) {
+      recognition.stop();
+    }
+
+    // Disable send button and show loading state
+    sendBtn.setAttribute("disabled", "true");
+    sendBtn.classList.add("opacity-0", "scale-75");
+    
+    // Show loading status message
+    statusMsg.innerText = "Creating project structure...";
+    statusMsg.style.opacity = "1";
+
+    // Send data via AJAX
+    $.ajax({
+      url: "/create-file-structure", 
+      type: "POST",
+      data: {
+        message: message,
+        timestamp: new Date().toISOString()
+      },
+      dataType: "json",
+      success: function(response) {
+        console.log("Message sent successfully:", response);
+        
+        // Clear textarea
+        textarea.value = "";
+        resizeTextarea();
+        
+        // Check if project was created successfully
+        if (response.status === "success" && response.folder_name) {
+          // Update status with success message
+          statusMsg.innerText = `Project '${response.folder_name}' created! Redirecting...`;
+          
+          // Redirect after a short delay
+          setTimeout(() => {
+            window.location.href = `/${response.folder_name}`;
+          }, 1500);
+        } else {
+          // Show error message if creation failed
+          statusMsg.innerText = response.message || "Project creation failed";
+          setTimeout(() => {
+            statusMsg.style.opacity = "0";
+            statusMsg.innerText = "Listening...";
+            
+            // Re-enable send button
+            if (textarea.value.trim().length > 0) {
+              sendBtn.removeAttribute("disabled");
+              sendBtn.classList.remove("opacity-0", "scale-75");
+            }
+          }, 2000);
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error("Error sending message:", error);
+        
+        // Show error message
+        statusMsg.innerText = "Failed to send message";
+        setTimeout(() => {
+          statusMsg.style.opacity = "0";
+          statusMsg.innerText = "Listening...";
+        }, 2000);
+        
+        // Re-enable send button
+        if (textarea.value.trim().length > 0) {
+          sendBtn.removeAttribute("disabled");
+          sendBtn.classList.remove("opacity-0", "scale-75");
+        }
+      }
+    });
+  };
+
+  // --- 7. EVENT LISTENERS ---
+  micBtn.addEventListener("click", toggleMic);
+  sendBtn.addEventListener("click", sendMessage);
+
+  // Allow Enter key to send (Shift+Enter for new line)
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (textarea.value.trim().length > 0) {
+        sendMessage();
+      }
+    }
+  });
+
+  setTimeout(toggleMic, 3000);
 });

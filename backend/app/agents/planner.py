@@ -1,5 +1,5 @@
-from .llm_client import get_llm_response
-from ..file_operations import create_project_structure
+from app.agents.llm_client import get_llm_response
+from app.file_operations import create_project_structure
 
 def think_directory_structure(voice):
     system_prompt = """
