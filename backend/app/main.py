@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from app.agents.planner import think_directory_structure
+from app.agents.coder import write_code_agent
 from app.file_operations import create_project_structure
 import os
 
@@ -174,6 +175,44 @@ async def save_file_content(folder_name: str, file_path: str, request: Request):
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to save file: {str(e)}"}
+        )
+
+
+
+@app.post("/api/write-code")
+async def write_code(request: Request):
+    """
+    Receives a user's request, the current file context, and folder structure,
+    then uses an agent to generate code.
+    """
+    try:
+        body = await request.json()
+        message = body.get("message", "")
+        current_file_path = body.get("current_file_path", "")
+        folder_structure = body.get("folder_structure", {})
+
+        # print("=" * 50)
+        # print("Received data for /api/write-code:")
+        # print(f"  - Message: {message}")
+        # print(f"  - Current File: {current_file_path}")
+        # # print(f"  - Folder Structure: {folder_structure}") # Can be very long
+        # print("=" * 50)
+
+        # Pass the context to the coding agent
+        agent_response = write_code_agent(message, folder_structure, current_file_path)
+
+        # print(agent_response)
+  
+        # For now, just return the agent's response
+        return {
+            "status": "success",
+            "response": agent_response
+        }
+    except Exception as e:
+        print(f"Error in /api/write-code: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to process code generation request"}
         )
 
 @app.post("/create-file-structure")
