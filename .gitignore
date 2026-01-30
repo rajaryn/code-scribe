@@ -1,2 +1,11 @@
-env.php
-node_modules
+# env files anywhere
+.env
+*/.env
+**/.env
+
+# virtual env
+.venv
+**/.venv
+
+# generated
+generated_projects
