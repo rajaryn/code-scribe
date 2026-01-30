@@ -1,4 +1,11 @@
+# env files anywhere
 .env
-.venv 
-generated_projects 
 */.env
+**/.env
+
+# virtual env
+.venv
+**/.venv
+
+# generated
+generated_projects

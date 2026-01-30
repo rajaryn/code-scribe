@@ -206,7 +206,7 @@ async def write_code(request: Request):
 
         # Pass the context to the coding agent
         agent_response = write_code_agent(message, folder_structure, current_file_path)
-
+        
         # print(agent_response)
   
         # For now, just return the agent's response
