@@ -37,6 +37,12 @@ if not GENERATED_PROJECTS_DIR.exists(): GENERATED_PROJECTS_DIR.mkdir(exist_ok=Tr
 # 3. Static Mounts (Serve CSS and JS folders)
 app.mount("/css", StaticFiles(directory=CSS_DIR), name="css")
 app.mount("/js", StaticFiles(directory=JS_DIR), name="js")
+# Serve generated projects as static websites
+app.mount(
+    "/preview",
+    StaticFiles(directory=GENERATED_PROJECTS_DIR, html=True),
+    name="preview",
+)
 
 # 4. Root Route (Serve index.html)
 @app.get("/")

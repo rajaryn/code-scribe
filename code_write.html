@@ -538,7 +538,7 @@
           alert("Please select a project first.");
           return;
         }
-        const previewUrl = `/${currentProjectName}/`;
+        const previewUrl = `/preview/${currentProjectName}/`;
         previewIframe.src = previewUrl;
         modalProjectTitle.textContent = `Preview: ${currentProjectName}`;
         previewModalOverlay.style.display = "flex";

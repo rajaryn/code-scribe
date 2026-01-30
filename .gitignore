@@ -1,2 +1,4 @@
-env.php
-node_modules
+.env
+.venv 
+generated_projects 
+*/.env
