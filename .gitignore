@@ -8,6 +8,6 @@
 **/.venv
 
 # generated
-generated_projects
+generated_projects/
 
 run.txt
