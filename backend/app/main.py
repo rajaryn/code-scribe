@@ -1,16 +1,38 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from app.agents.planner import think_directory_structure
-from app.agents.coder import write_code_agent
-from app.file_operations import create_project_structure
 import os
+import io
+import shutil
+from datetime import datetime
+
+# Internal imports
+from app.agents.planner import think_directory_structure
+from app.agents.coder import write_code_agent, write_latex_code_agent
+from app.agents.latex_agent import enhance_latex, format_as_block
+from app.file_operations import create_project_structure
+from faster_whisper import WhisperModel
 
 app = FastAPI()
 
-# 1. CORS Setup (Good practice to keep)
+# --- 1. CONFIGURATION & PATHS ---
+# Resolving paths relative to the project root (DevScribe/)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+GENERATED_PROJECTS_DIR = BASE_DIR / "generated_projects"
+CSS_DIR = BASE_DIR / "css"
+JS_DIR = BASE_DIR / "js"
+HTML_FILE = BASE_DIR / "index.html"
+CODE_WRITE_HTML = BASE_DIR / "code_write.html"
+
+# Ensure directories exist
+GENERATED_PROJECTS_DIR.mkdir(exist_ok=True)
+
+# Initialize Faster Whisper
+# Note: Initializing here ensures it's ready when the app starts
+whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,247 +40,236 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
- 
-# 2. Define Paths
-# Points to the root folder 'devscribe-backend'
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-GENERATED_PROJECTS_DIR = BASE_DIR / "generated_projects"
 
-CSS_DIR = BASE_DIR / "css"
-JS_DIR = BASE_DIR / "js"
-HTML_FILE = BASE_DIR / "index.html"
-CODE_WRITE_HTML = BASE_DIR / "code_write.html"
+# --- 2. STATIC FILES ---
+# Mount these BEFORE the catch-all to prevent HTML being served for JS/CSS
+app.mount("/css", StaticFiles(directory=str(CSS_DIR)), name="css")
+app.mount("/js", StaticFiles(directory=str(JS_DIR)), name="js")
+app.mount("/preview_static", StaticFiles(directory=str(GENERATED_PROJECTS_DIR), html=True), name="preview_static")
 
-# Validation: Create folders if they don't exist to prevent crashes
-if not CSS_DIR.exists(): CSS_DIR.mkdir(exist_ok=True)
-if not JS_DIR.exists(): JS_DIR.mkdir(exist_ok=True)
-if not GENERATED_PROJECTS_DIR.exists(): GENERATED_PROJECTS_DIR.mkdir(exist_ok=True)
+# --- 3. API ENDPOINTS ---
 
-# 3. Static Mounts (Serve CSS and JS folders)
-app.mount("/css", StaticFiles(directory=CSS_DIR), name="css")
-app.mount("/js", StaticFiles(directory=JS_DIR), name="js")
-# Serve generated projects as static websites
-app.mount(
-    "/preview",
-    StaticFiles(directory=GENERATED_PROJECTS_DIR, html=True),
-    name="preview",
-)
+@app.get("/api/list-projects")
+@app.get("/api/list-projects/")
+async def list_projects():
+    projects = []
+    if not GENERATED_PROJECTS_DIR.exists():
+        return {"projects": []}
+        
+    for d in GENERATED_PROJECTS_DIR.iterdir():
+        if d.is_dir():
+            stats = d.stat()
+            is_math = d.name.startswith("math_project_")
+            projects.append({
+                "name": d.name,
+                "is_math": is_math,
+                # Use raw timestamp for sorting
+                "mtime": stats.st_mtime, 
+                "last_modified": datetime.fromtimestamp(stats.st_mtime).strftime('%d %b, %H:%M'),
+                "display_name": d.name.replace("math_project_", "Math: ").replace("_", " ")
+            })
+    
+    # SORT BY TIME (Newest first) - This fixes the "stale" UI feeling
+    projects.sort(key=lambda x: x['mtime'], reverse=True) 
+    return {"projects": projects}
 
-# 4. Root Route (Serve index.html)
-@app.get("/")
-async def serve_root():
-    print(f"Serving index.html from: {HTML_FILE}")
-    if not HTML_FILE.exists():
-        return {"error": "index.html not found in backend root"}
-    return FileResponse(HTML_FILE)
-
-# 5. API endpoint to get folder structure
-@app.get("/api/folder-structure/{folder_name}")
-async def get_folder_structure(folder_name: str):
-    """
-    Returns the folder structure for a given project
-    """
+@app.delete("/api/delete-project/{folder_name}")
+async def delete_project(folder_name: str):
     project_path = GENERATED_PROJECTS_DIR / folder_name
-    
-    if not project_path.exists():
-        return JSONResponse(
-            status_code=404,
-            content={"error": f"Project '{folder_name}' not found"}
-        )
-    
-    def build_tree(path: Path, parent_path: str = ""):
-        """Recursively build folder tree structure"""
-        items = []
-        
-        try:
-            # Get all items in directory, sorted (folders first, then files)
-            entries = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
-            
-            for entry in entries:
-                relative_path = f"{parent_path}/{entry.name}" if parent_path else entry.name
-                
-                if entry.is_dir():
-                    items.append({
-                        "name": entry.name,
-                        "type": "folder",
-                        "path": relative_path,
-                        "children": build_tree(entry, relative_path)
-                    })
-                else:
-                    items.append({
-                        "name": entry.name,
-                        "type": "file",
-                        "path": relative_path
-                    })
-        except PermissionError:
-            pass
-        
-        return items
-    
-    structure = build_tree(project_path)
-    
-    return {
-        "project_name": folder_name,
-        "structure": structure
-    }
+    if project_path.exists() and project_path.is_dir():
+        shutil.rmtree(project_path)
+        return {"status": "success"}
+    return JSONResponse(status_code=404, content={"error": "Project not found"})
 
-# 6. API endpoint to get file content
-@app.get("/api/file-content/{folder_name}/{file_path:path}")
-async def get_file_content(folder_name: str, file_path: str):
-    """
-    Returns the content of a specific file
-    """
+
+
+@app.post("/create-file-structure")
+async def create_file_structure_endpoint(
+    message: str = Form(...), 
+    timestamp: str = Form(...), 
+    is_math: bool = Form(False)
+):
+    if is_math:
+        clean_ts = timestamp.replace(':', '-').replace('.', '-').replace(' ', '_')
+        folder_name = f"math_project_{clean_ts}"
+        project_path = GENERATED_PROJECTS_DIR / folder_name
+        project_path.mkdir(parents=True, exist_ok=True)
+
+        raw_latex = write_latex_code_agent(message, {}, "main.tex")
+        refined_latex = enhance_latex(raw_latex) # Use your new agent
+        
+        # Wrap in delimiters so KaTeX sees it immediately
+        final_content = format_as_block(refined_latex)
+        with open(project_path / "main.tex", "w", encoding="utf-8") as f:
+            f.write(final_content)
+
+        return {"status": "success", "folder_name": folder_name, "is_math": True}
+
+    planner_response = think_directory_structure(message)
+    create_project_structure(planner_response)
+    folder_name = planner_response.get("project_name", "untitled_project")
+    return {"status": "success", "folder_name": folder_name, "is_math": False}
+
+@app.post("/api/whisper-latex")
+async def whisper_latex_transcription(request: Request):
+
+    # 1. Transcribe audio using Faster Whisper
+    audio_data = await request.body()
+    segments, _ = whisper_model.transcribe(io.BytesIO(audio_data), beam_size=5)
+    raw_text = " ".join([segment.text for segment in segments])
+
+    # 2. Use the Enhancer Agent (Local Ollama) to refine the text
+    refined_latex = enhance_latex(raw_text)
+    return {"status": "success", "text": refined_latex.strip()}
+
+@app.get("/render-latex/{folder_name}/{file_path:path}", response_class=HTMLResponse)
+async def render_latex_view(folder_name: str, file_path: str):
     full_path = GENERATED_PROJECTS_DIR / folder_name / file_path
-    
-    if not full_path.exists() or not full_path.is_file():
-        return JSONResponse(
-            status_code=404,
-            content={"error": "File not found"}
-        )
-    
+    if not full_path.exists():
+        return "<h3>Error: File not found.</h3>"
+
     try:
         with open(full_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
-        return {
-            "file_path": file_path,
-            "content": content
-        }
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to read file: {str(e)}"}
-        )
+        return f"<h3>Error reading file: {e}</h3>"
 
-# 7. Catch-All Route (Modified to serve code_write.html for project routes)
-@app.get("/{full_path:path}")
-async def catch_all(full_path: str):
-    # Check if it's a project route (e.g., /project_name)
-    if "/" not in full_path:  # Single path segment
-        project_path = GENERATED_PROJECTS_DIR / full_path
-        if project_path.exists() and project_path.is_dir():
-            # Serve code_write.html for project routes
-            if CODE_WRITE_HTML.exists():
-                return FileResponse(CODE_WRITE_HTML)
-    
-    # Check if the requested file exists in the root (e.g., favicon.ico)
-    potential_file = BASE_DIR / full_path
-    if potential_file.exists() and potential_file.is_file():
-        return FileResponse(potential_file)
-    
-    # Otherwise, default to index.html
-    if HTML_FILE.exists():
-        return FileResponse(HTML_FILE)
+    # We use a raw string for the HTML to avoid backslash hell
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>DevScribe Smart Preview: {file_path}</title>
         
-    return {"error": "File not found"}
+        <script>
+            window.MathJax = {{
+                tex: {{
+                    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                    processEscapes: true,
+                    processEnvironments: true,
+                    // Smart feature: ignores LaTeX document commands instead of breaking
+                    tags: 'ams' 
+                }},
+                options: {{
+                    renderActions: {{
+                        addMenu: [] // Keeps the UI clean but smart
+                    }}
+                }},
+                svg: {{
+                    fontCache: 'global'
+                }}
+            }};
+        </script>
+
+        <script type="text/javascript" id="MathJax-script" async
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+        </script>
+
+        <style>
+            body {{ 
+                background: #f0f2f5; 
+                margin: 0; 
+                padding: 40px; 
+                font-family: 'Georgia', serif; 
+            }}
+            .paper {{ 
+                max-width: 850px; 
+                margin: 0 auto; 
+                background: white; 
+                padding: 60px; 
+                border: 1px solid #d1d9e6; 
+                box-shadow: 0 12px 24px rgba(0,0,0,0.05); 
+                min-height: 100vh;
+                line-height: 1.8;
+                font-size: 1.1rem;
+            }}
+            /* Hide the raw LaTeX document commands from the user view */
+            .paper {{ visibility: hidden; }}
+            .mjx-container {{ visibility: visible !important; display: block; }}
+        </style>
+    </head>
+    <body>
+        <div class="paper" id="math-paper" style="visibility: visible;">
+            {content}
+        </div>
+    </body>
+    </html>
+    """
+
+
+
+@app.get("/api/folder-structure/{folder_name}")
+async def get_folder_structure(folder_name: str):
+    project_path = GENERATED_PROJECTS_DIR / folder_name
+    if not project_path.exists():
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+    
+    def build_tree(path: Path, parent_path: str = ""):
+        items = []
+        for entry in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            rel = f"{parent_path}/{entry.name}" if parent_path else entry.name
+            if entry.is_dir():
+                items.append({"name": entry.name, "type": "folder", "path": rel, "children": build_tree(entry, rel)})
+            else:
+                items.append({"name": entry.name, "type": "file", "path": rel})
+        return items
+
+    return {"project_name": folder_name, "structure": build_tree(project_path)}
+
+@app.get("/api/file-content/{folder_name}/{file_path:path}")
+async def get_file_content(folder_name: str, file_path: str):
+    full_path = GENERATED_PROJECTS_DIR / folder_name / file_path
+    if not full_path.exists(): return JSONResponse(status_code=404, content={"error": "Not found"})
+    with open(full_path, 'r', encoding='utf-8') as f:
+        return {"file_path": file_path, "content": f.read()}
 
 @app.post("/api/save-file/{folder_name}/{file_path:path}")
 async def save_file_content(folder_name: str, file_path: str, request: Request):
-    """Saves content to a specific file"""
     full_path = GENERATED_PROJECTS_DIR / folder_name / file_path
-    
-    if not full_path.exists() or not full_path.is_file():
-        return JSONResponse(
-            status_code=404,
-            content={"error": "File not found"}
-        )
-    
-    try:
-        # Get JSON body
-        body = await request.json()
-        content = body.get("content", "")
-        
-        # Write content to file
-        with open(full_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        return {
-            "status": "success",
-            "message": "File saved successfully",
-            "file_path": file_path
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to save file: {str(e)}"}
-        )
-
-
+    body = await request.json()
+    with open(full_path, 'w', encoding='utf-8') as f:
+        f.write(body.get("content", ""))
+    return {"status": "success"}
 
 @app.post("/api/write-code")
 async def write_code(request: Request):
-    """
-    Receives a user's request, the current file context, and folder structure,
-    then uses an agent to generate code.
-    """
-    try:
-        body = await request.json()
-        message = body.get("message", "")
-        current_file_path = body.get("current_file_path", "")
-        folder_structure = body.get("folder_structure", {})
+    body = await request.json()
+    agent_response = write_code_agent(body.get("message"), body.get("folder_structure"), body.get("current_file_path"))
+    return {"status": "success", "response": agent_response}
 
-        # print("=" * 50)
-        # print("Received data for /api/write-code:")
-        # print(f"  - Message: {message}")
-        # print(f"  - Current File: {current_file_path}")
-        # # print(f"  - Folder Structure: {folder_structure}") # Can be very long
-        # print("=" * 50)
 
-        # Pass the context to the coding agent
-        agent_response = write_code_agent(message, folder_structure, current_file_path)
-        
-        # print(agent_response)
-  
-        # For now, just return the agent's response
-        return {
-            "status": "success",
-            "response": agent_response
-        }
-    except Exception as e:
-        print(f"Error in /api/write-code: {e}")
+
+# --- 4. ROUTING & CATCH-ALL---
+
+# --- 4. ROUTING & CATCH-ALL (The Hardened Version) ---
+
+@app.get("/")
+async def serve_root():
+    return FileResponse(HTML_FILE)
+
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    # 1. EXPLICIT GUARD: If the path starts with 'api', 'css', or 'js', 
+    # do NOT serve HTML. Force a 404. 
+    # This stops the "Unexpected token <" error forever.
+    if full_path.startswith(("api/", "css/", "js/", "preview_static/", "render-latex/")):
         return JSONResponse(
-            status_code=500,
-            content={"error": "Failed to process code generation request"}
+            status_code=404, 
+            content={"error": f"Path '{full_path}' not found on server."}
         )
 
-@app.post("/create-file-structure")
-async def create_file_structure_endpoint(message: str = Form(...), timestamp: str = Form(...)):
-    print("=" * 50)
-    print("POST Variables Received:")
-    print("=" * 50)
-    print(f"message: {message}")
-    print(f"timestamp: {timestamp}")
-    print("=" * 50)
+    # 2. Check if path is a generated project directory
+    # (e.g., localhost:8000/math_project_2026...)
+    project_path = GENERATED_PROJECTS_DIR / full_path
+    if full_path and project_path.exists() and project_path.is_dir():
+        return FileResponse(CODE_WRITE_HTML)
     
-    # Step 1: Get directory structure from planner
-    planner_response = think_directory_structure(message)
-    print("\n" + "=" * 50)
-    print("Planner Response:")
-    print("=" * 50)
-    print(planner_response)
-    print("=" * 50 + "\n")
-    
-    # Step 2: Create the project structure
-    creation_result = create_project_structure(planner_response)
-    print("\n" + "=" * 50)
-    print("File Creation Result:")
-    print("=" * 50)
-    print(creation_result)
-    print("=" * 50 + "\n")
-    
-    # Extract folder name from planner response
-    folder_name = planner_response.get("project_name", "untitled_project")
-    
-    return {
-        "status": creation_result.get("status", "error"),
-        "folder_name": folder_name,
-        "message": f"Project '{folder_name}' created successfully" if creation_result.get("status") == "success" else "Failed to create project",
-        "details": {
-            "project_path": creation_result.get("path", ""),
-            "files_created": creation_result.get("files_created", [])
-        }
-    }
+    # 3. Fallback for the Home Page
+    # Only return index.html if it's not a broken asset/API request
+    return FileResponse(HTML_FILE)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="localhost", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="localhost", port=8000, reload=True)

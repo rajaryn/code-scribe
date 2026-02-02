@@ -42,4 +42,14 @@ Return all required files in JSON format.
     
     print(response_data)
     # fallback if string
-    return json.loads(response_data)
+    return response_data
+
+
+
+def write_latex_code_agent(prompt: str, context: dict, filename: str):
+    """
+    Returns ONLY the content of the math request. 
+    No \documentclass or \begin{document} shells.
+    """
+    # Simply return the raw prompt/message for the enhancer to process
+    return prompt
